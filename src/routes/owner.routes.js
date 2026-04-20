@@ -21,5 +21,6 @@ router.get("/orders", asyncHandler(ownerController.listOrders));
 router.get("/orders/:orderId", asyncHandler(ownerController.getOrder));
 router.patch("/orders/:orderId/status", asyncHandler(ownerController.updateOrderStatus));
 router.get("/qr", asyncHandler(ownerController.getQr));
+router.post("/qr/refresh", asyncHandler(ownerController.refreshQr));
 
 module.exports = router;

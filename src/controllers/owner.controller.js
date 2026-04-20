@@ -24,6 +24,10 @@ function fileUrl(file) {
     return "";
   }
 
+  if (file.buffer && file.mimetype) {
+    return `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
+  }
+
   const relativePath = file.path.replace(/\\/g, "/").replace(/^.*uploads\//, "/uploads/");
   return relativePath.startsWith("/uploads/") ? relativePath : `/uploads/${file.filename}`;
 }
@@ -306,7 +310,36 @@ async function getQr(req, res) {
     throw new ApiError(404, "Shop not found");
   }
 
-  const qrUrl = buildShopUrl(shop.slug);
+  const qrUrl = shop.qrUrl || buildShopUrl(shop.slug);
+  const qrDataUrl = await toDataUrl(qrUrl);
+
+  res.json({
+    success: true,
+    data: {
+      qrUrl,
+      qrDataUrl
+    }
+  });
+}
+
+async function refreshQr(req, res) {
+  const shop = await Shop.findById(req.shopId);
+
+  if (!shop) {
+    throw new ApiError(404, "Shop not found");
+  }
+
+  let qrUrl;
+
+  try {
+    qrUrl = buildShopUrl(shop.slug, req.body.baseUrl || req.get("origin"));
+  } catch (_error) {
+    throw new ApiError(400, "Invalid shop domain for QR code");
+  }
+
+  shop.qrUrl = qrUrl;
+  await shop.save();
+
   const qrDataUrl = await toDataUrl(qrUrl);
 
   res.json({
@@ -400,6 +433,7 @@ module.exports = {
   getOrder,
   updateOrderStatus,
   getQr,
+  refreshQr,
   registerDevice,
   sendOrderNotification
 };

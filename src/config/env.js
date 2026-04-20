@@ -3,8 +3,10 @@ const dotenv = require("dotenv");
 
 dotenv.config();
 
+const nodeEnv = process.env.NODE_ENV || "development";
 const required = ["MONGODB_URI", "JWT_SECRET"];
 const defaultCorsOrigins = ["http://localhost:5173", "https://qrmart-01.onrender.com"];
+const defaultAppBaseUrl = nodeEnv === "production" ? "https://qrmart-01.onrender.com" : "http://localhost:5173";
 
 function parseCorsOrigins(value) {
   if (!value || value === "*") {
@@ -32,9 +34,9 @@ for (const key of required) {
 }
 
 module.exports = {
-  nodeEnv: process.env.NODE_ENV || "development",
+  nodeEnv,
   port: Number(process.env.PORT || 5000),
-  appBaseUrl: process.env.APP_BASE_URL || "http://localhost:5000",
+  appBaseUrl: process.env.APP_BASE_URL || defaultAppBaseUrl,
   corsOrigin: parseCorsOrigins(process.env.CORS_ORIGIN),
   mongodbUri: process.env.MONGODB_URI,
   firebaseServiceAccountPath: process.env.FIREBASE_SERVICE_ACCOUNT_PATH
