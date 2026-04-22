@@ -27,7 +27,17 @@ const ownerSchema = new mongoose.Schema(
     },
     passwordHash: {
       type: String,
-      required: true
+      default: ""
+    },
+    authProvider: {
+      type: String,
+      enum: ["password", "google"],
+      default: "password"
+    },
+    googleSub: {
+      type: String,
+      trim: true,
+      default: ""
     },
     isActive: {
       type: Boolean,
@@ -41,6 +51,15 @@ const ownerSchema = new mongoose.Schema(
 );
 
 ownerSchema.index(
+  { googleSub: 1 },
+  {
+    unique: true,
+    sparse: true,
+    partialFilterExpression: { googleSub: { $type: "string", $gt: "" } }
+  }
+);
+
+ownerSchema.index(
   { email: 1 },
   {
     unique: true,
@@ -50,4 +69,3 @@ ownerSchema.index(
 );
 
 module.exports = mongoose.model("Owner", ownerSchema);
-

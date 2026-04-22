@@ -12,5 +12,6 @@ build/
 *.local
 *-firebase-adminsdk-*.json
 qrmart-fc52c-firebase-adminsdk-fbsvc-7fcaa31591.json
+client_secret_*.json
 uploads/*
 !uploads/.gitkeep
