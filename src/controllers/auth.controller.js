@@ -64,7 +64,14 @@ async function verifyGoogleCredential(credential) {
     throw new ApiError(500, "Google sign-in requires Node.js 18 or newer");
   }
 
-  const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+  let response;
+
+  try {
+    response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+  } catch (error) {
+    throw new ApiError(502, "Google sign-in could not be verified right now");
+  }
+
   const profile = await response.json().catch(() => ({}));
 
   if (!response.ok) {
