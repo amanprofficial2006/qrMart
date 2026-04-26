@@ -30,6 +30,20 @@ npm install
 npm run dev
 ```
 
+Render deployment:
+
+```txt
+Frontend/customer app: https://qrmart-01.onrender.com
+Backend API: https://qrmart.onrender.com
+```
+
+Use these backend env values on Render:
+
+```txt
+APP_BASE_URL=https://qrmart-01.onrender.com
+CORS_ORIGIN=https://qrmart-01.onrender.com,https://qrmart.onrender.com
+```
+
 Open:
 
 ```txt

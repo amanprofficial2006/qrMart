@@ -5,7 +5,12 @@ dotenv.config();
 
 const nodeEnv = process.env.NODE_ENV || "development";
 const required = ["MONGODB_URI", "JWT_SECRET"];
-const defaultCorsOrigins = ["http://localhost:5173", "https://qrmart-01.onrender.com"];
+const defaultCorsOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "https://qrmart-01.onrender.com",
+  "https://qrmart.onrender.com"
+];
 const defaultAppBaseUrl = nodeEnv === "production" ? "https://qrmart-01.onrender.com" : "http://localhost:5173";
 
 function parseCorsOrigins(value) {
