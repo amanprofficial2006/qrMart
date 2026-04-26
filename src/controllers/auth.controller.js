@@ -4,7 +4,7 @@ const env = require("../config/env");
 const ApiError = require("../utils/ApiError");
 const slugify = require("../utils/slugify");
 const buildShopUrl = require("../utils/shopUrl");
-const { googleClientId } = require("../config/google");
+const { googleClientIds } = require("../config/google");
 const Owner = require("../models/Owner");
 const Shop = require("../models/Shop");
 
@@ -52,7 +52,7 @@ async function createUniqueSlug(name) {
 }
 
 async function verifyGoogleCredential(credential) {
-  if (!googleClientId) {
+  if (!googleClientIds.length) {
     throw new ApiError(500, "Google sign-in is not configured");
   }
 
@@ -78,7 +78,7 @@ async function verifyGoogleCredential(credential) {
     throw new ApiError(401, profile.error_description || "Invalid Google credential");
   }
 
-  if (profile.aud !== googleClientId) {
+  if (!googleClientIds.includes(String(profile.aud || "").trim())) {
     throw new ApiError(401, "Google credential was issued for another app");
   }
 
