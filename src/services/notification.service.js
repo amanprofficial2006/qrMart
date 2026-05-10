@@ -6,6 +6,8 @@ const INVALID_TOKEN_CODES = new Set([
   "messaging/invalid-registration-token",
   "messaging/registration-token-not-registered"
 ]);
+const OWNER_ORDER_ALERT_CHANNEL_ID = "orders_alerts_v2";
+const OWNER_ORDER_ALERT_SOUND = "order_alert";
 
 function summarizeOrder(order) {
   return order.items
@@ -23,6 +25,18 @@ async function logNotification({ shopId, orderId, channel, status, providerMessa
     providerMessageId,
     error
   });
+}
+
+function collectInvalidTokens(response, tokens) {
+  const invalidTokens = [];
+
+  response.responses.forEach((item, index) => {
+    if (!item.success && item.error && INVALID_TOKEN_CODES.has(item.error.code)) {
+      invalidTokens.push(tokens[index]);
+    }
+  });
+
+  return invalidTokens;
 }
 
 async function sendNewOrderNotification(order, shop) {
@@ -46,11 +60,19 @@ async function sendNewOrderNotification(order, shop) {
   const devices = await OwnerDevice.find({
     shopId: shop._id,
     isActive: true
-  }).select("fcmToken");
+  }).select("fcmToken platform");
 
-  const tokens = devices.map((device) => device.fcmToken).filter(Boolean);
+  const androidTokens = devices
+    .filter((device) => device.platform === "android")
+    .map((device) => device.fcmToken)
+    .filter(Boolean);
+  const otherTokens = devices
+    .filter((device) => device.platform !== "android")
+    .map((device) => device.fcmToken)
+    .filter(Boolean);
+  const allTokens = [...androidTokens, ...otherTokens];
 
-  if (!tokens.length) {
+  if (!allTokens.length) {
     await logNotification({
       shopId: order.shopId,
       orderId: order._id,
@@ -69,67 +91,96 @@ async function sendNewOrderNotification(order, shop) {
     const customerName = order.customer?.name || "Customer";
     const orderSummary = summarizeOrder(order);
     const body = `${customerName}: ${orderSummary} - Rs. ${order.totalAmount}`;
-
-    const response = await messaging.sendEachForMulticast({
-      tokens,
-      notification: {
-        title: "New Order",
-        body
-      },
-      data: {
-        type: "NEW_ORDER",
-        orderId: String(order._id),
-        shopId: String(shop._id),
-        orderNumber: order.orderNumber,
-        customerName,
-        orderSummary,
-        address: order.customer?.address || "",
-        totalAmount: String(order.totalAmount),
-        click_action: "FLUTTER_NOTIFICATION_CLICK"
-      },
-      android: {
-        priority: "high",
-        ttl: 60 * 60 * 1000,
-        notification: {
-          channelId: "orders_alerts",
-          sound: "default",
-          priority: "max",
-          visibility: "public",
-          defaultSound: true,
-          defaultVibrateTimings: true
-        }
-      },
-      apns: {
-        payload: {
-          aps: {
-            sound: "default",
-            badge: 1,
-            contentAvailable: true
-          }
-        }
-      },
-      webpush: {
-        notification: {
-          title: "New Order",
-          body,
-          icon: "/favicon.svg",
-          badge: "/favicon.svg",
-          requireInteraction: true,
-          tag: `order-${order._id}`
-        },
-        fcmOptions: {
-          link: "/dashboard"
-        }
-      }
-    });
-
+    let successCount = 0;
+    let failureCount = 0;
     const invalidTokens = [];
 
-    response.responses.forEach((item, index) => {
-      if (!item.success && item.error && INVALID_TOKEN_CODES.has(item.error.code)) {
-        invalidTokens.push(tokens[index]);
-      }
-    });
+    if (androidTokens.length) {
+      const androidResponse = await messaging.sendEachForMulticast({
+        tokens: androidTokens,
+        data: {
+          type: "NEW_ORDER",
+          orderId: String(order._id),
+          shopId: String(shop._id),
+          orderNumber: order.orderNumber,
+          customerName,
+          orderSummary,
+          address: order.customer?.address || "",
+          totalAmount: String(order.totalAmount),
+          title: "New Order",
+          body,
+          channelId: OWNER_ORDER_ALERT_CHANNEL_ID,
+          sound: OWNER_ORDER_ALERT_SOUND,
+          click_action: "FLUTTER_NOTIFICATION_CLICK"
+        },
+        android: {
+          priority: "high",
+          ttl: 60 * 60 * 1000
+        }
+      });
+
+      successCount += androidResponse.successCount;
+      failureCount += androidResponse.failureCount;
+      invalidTokens.push(...collectInvalidTokens(androidResponse, androidTokens));
+    }
+
+    if (otherTokens.length) {
+      const otherResponse = await messaging.sendEachForMulticast({
+        tokens: otherTokens,
+        notification: {
+          title: "New Order",
+          body
+        },
+        data: {
+          type: "NEW_ORDER",
+          orderId: String(order._id),
+          shopId: String(shop._id),
+          orderNumber: order.orderNumber,
+          customerName,
+          orderSummary,
+          address: order.customer?.address || "",
+          totalAmount: String(order.totalAmount),
+          click_action: "FLUTTER_NOTIFICATION_CLICK"
+        },
+        android: {
+          priority: "high",
+          ttl: 60 * 60 * 1000,
+          notification: {
+            channelId: OWNER_ORDER_ALERT_CHANNEL_ID,
+            sound: OWNER_ORDER_ALERT_SOUND,
+            priority: "max",
+            visibility: "public",
+            defaultVibrateTimings: true
+          }
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: "default",
+              badge: 1,
+              contentAvailable: true
+            }
+          }
+        },
+        webpush: {
+          notification: {
+            title: "New Order",
+            body,
+            icon: "/favicon.svg",
+            badge: "/favicon.svg",
+            requireInteraction: true,
+            tag: `order-${order._id}`
+          },
+          fcmOptions: {
+            link: "/dashboard"
+          }
+        }
+      });
+
+      successCount += otherResponse.successCount;
+      failureCount += otherResponse.failureCount;
+      invalidTokens.push(...collectInvalidTokens(otherResponse, otherTokens));
+    }
 
     if (invalidTokens.length) {
       await OwnerDevice.updateMany(
@@ -138,20 +189,20 @@ async function sendNewOrderNotification(order, shop) {
       );
     }
 
-    const status = response.failureCount === 0 ? "sent" : response.successCount > 0 ? "partial" : "failed";
+    const status = failureCount === 0 ? "sent" : successCount > 0 ? "partial" : "failed";
 
     await logNotification({
       shopId: order.shopId,
       orderId: order._id,
       channel: "fcm",
       status,
-      providerMessageId: `success:${response.successCount};failure:${response.failureCount}`,
-      error: response.failureCount ? "One or more FCM sends failed" : ""
+      providerMessageId: `success:${successCount};failure:${failureCount}`,
+      error: failureCount ? "One or more FCM sends failed" : ""
     });
 
     return {
       status,
-      messageId: `success:${response.successCount};failure:${response.failureCount}`
+      messageId: `success:${successCount};failure:${failureCount}`
     };
   } catch (error) {
     await logNotification({
