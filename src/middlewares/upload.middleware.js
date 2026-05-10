@@ -2,8 +2,8 @@ const multer = require("multer");
 const ApiError = require("../utils/ApiError");
 
 function imageFilter(_req, file, cb) {
-  if (!["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)) {
-    return cb(new ApiError(400, "Only JPG, PNG, or WebP images are allowed"));
+  if (!String(file.mimetype || "").toLowerCase().startsWith("image/")) {
+    return cb(new ApiError(400, "Only image files are allowed"));
   }
 
   return cb(null, true);
