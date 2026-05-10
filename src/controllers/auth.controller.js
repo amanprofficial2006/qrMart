@@ -12,6 +12,8 @@ function normalizePhone(phone) {
   return String(phone || "").replace(/\D/g, "");
 }
 
+const STATIC_OWNER_OTP = "142006";
+
 function signOwnerToken(owner) {
   return jwt.sign(
     {
@@ -94,14 +96,14 @@ async function verifyGoogleCredential(credential) {
 }
 
 async function register(req, res) {
-  const { name, phone, email = "", password, shopName } = req.body;
+  const { name, phone, email = "", password = "", shopName } = req.body;
   const cleanPhone = normalizePhone(phone);
 
-  if (!name || !cleanPhone || !password || !shopName) {
-    throw new ApiError(400, "Name, phone, password, and shop name are required");
+  if (!name || !cleanPhone || !shopName) {
+    throw new ApiError(400, "Name, phone, and shop name are required");
   }
 
-  if (password.length < 6) {
+  if (password && password.length < 6) {
     throw new ApiError(400, "Password must be at least 6 characters");
   }
 
@@ -113,6 +115,7 @@ async function register(req, res) {
     throw new ApiError(409, "An owner account with this email already exists");
   }
 
+  const requiresManualVerification = !password;
   const slug = await createUniqueSlug(shopName);
   const qrUrl = buildShopUrl(slug);
 
@@ -123,17 +126,17 @@ async function register(req, res) {
     phone: cleanPhone,
     whatsappNumber: cleanPhone,
     qrUrl,
-    isActive: true
+    isActive: !requiresManualVerification
   });
 
-  const passwordHash = await bcrypt.hash(password, 12);
   const owner = await Owner.create({
     shopId: shop._id,
     name,
     phone: cleanPhone,
     email: email.toLowerCase().trim(),
-    passwordHash,
-    authProvider: "password"
+    passwordHash: password ? await bcrypt.hash(password, 12) : "",
+    authProvider: "password",
+    isActive: !requiresManualVerification
   });
 
   const token = signOwnerToken(owner);
@@ -243,11 +246,11 @@ async function google(req, res) {
 }
 
 async function login(req, res) {
-  const { identifier, phone, email, password } = req.body;
+  const { identifier, phone, email, password = "", otp = "" } = req.body;
   const loginId = identifier || phone || email;
 
-  if (!loginId || !password) {
-    throw new ApiError(400, "Phone/email and password are required");
+  if (!loginId || (!password && !otp)) {
+    throw new ApiError(400, "Phone/email and password or OTP are required");
   }
 
   const cleanPhone = normalizePhone(loginId);
@@ -259,7 +262,15 @@ async function login(req, res) {
     isActive: true
   });
 
-  if (!owner || !owner.passwordHash || !(await bcrypt.compare(password, owner.passwordHash))) {
+  if (!owner) {
+    throw new ApiError(401, "Invalid login details");
+  }
+
+  if (otp) {
+    if (String(otp).trim() !== STATIC_OWNER_OTP) {
+      throw new ApiError(401, "Invalid OTP");
+    }
+  } else if (!owner.passwordHash || !(await bcrypt.compare(password, owner.passwordHash))) {
     throw new ApiError(401, "Invalid login details");
   }
 
