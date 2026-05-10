@@ -41,6 +41,10 @@ const shopSchema = new mongoose.Schema(
       trim: true,
       default: ""
     },
+    verificationPhotos: {
+      type: [String],
+      default: []
+    },
     payment: {
       upiId: {
         type: String,

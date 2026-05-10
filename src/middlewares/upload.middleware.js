@@ -31,8 +31,15 @@ const uploadPaymentQr = multer({
   limits
 });
 
+const uploadShopVerificationPhotos = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: imageFilter,
+  limits
+});
+
 module.exports = {
   uploadShopLogo,
   uploadProductImage,
-  uploadPaymentQr
+  uploadPaymentQr,
+  uploadShopVerificationPhotos
 };

@@ -12,6 +12,21 @@ function normalizePhone(phone) {
   return String(phone || "").replace(/\D/g, "");
 }
 
+function fileUrl(file) {
+  if (!file) {
+    return "";
+  }
+
+  if (file.buffer && file.mimetype) {
+    return `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
+  }
+
+  const relativePath = String(file.path || "")
+    .replace(/\\/g, "/")
+    .replace(/^.*uploads\//, "/uploads/");
+  return relativePath.startsWith("/uploads/") ? relativePath : `/uploads/${file.filename}`;
+}
+
 const STATIC_OWNER_OTP = "142006";
 
 function signOwnerToken(owner) {
@@ -96,11 +111,30 @@ async function verifyGoogleCredential(credential) {
 }
 
 async function register(req, res) {
-  const { name, phone, email = "", password = "", shopName } = req.body;
+  const {
+    name,
+    phone,
+    email = "",
+    password = "",
+    shopName,
+    address = "",
+    registrationSource = ""
+  } = req.body;
   const cleanPhone = normalizePhone(phone);
+  const shopPhotoFiles = Array.isArray(req.files) ? req.files : [];
+  const cleanAddress = String(address || "").trim();
+  const isOwnerAppRegistration = String(registrationSource).trim() === "owner_app";
 
   if (!name || !cleanPhone || !shopName) {
     throw new ApiError(400, "Name, phone, and shop name are required");
+  }
+
+  if (isOwnerAppRegistration && !cleanAddress) {
+    throw new ApiError(400, "Shop address is required");
+  }
+
+  if (isOwnerAppRegistration && shopPhotoFiles.length < 3) {
+    throw new ApiError(400, "Upload at least 3 shop photos before OTP verification");
   }
 
   if (password && password.length < 6) {
@@ -118,6 +152,7 @@ async function register(req, res) {
   const requiresManualVerification = !password;
   const slug = await createUniqueSlug(shopName);
   const qrUrl = buildShopUrl(slug);
+  const verificationPhotos = shopPhotoFiles.map(fileUrl).filter(Boolean);
 
   const shop = await Shop.create({
     name: shopName,
@@ -125,6 +160,8 @@ async function register(req, res) {
     ownerName: name,
     phone: cleanPhone,
     whatsappNumber: cleanPhone,
+    address: cleanAddress,
+    verificationPhotos,
     qrUrl,
     isActive: !requiresManualVerification
   });
