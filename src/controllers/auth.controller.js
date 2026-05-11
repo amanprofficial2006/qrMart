@@ -289,8 +289,7 @@ async function login(req, res) {
     $or: [
       { phone: cleanPhone },
       { email: String(loginId).toLowerCase().trim() }
-    ],
-    isActive: true
+    ]
   });
 
   if (!owner) {
@@ -303,6 +302,10 @@ async function login(req, res) {
     }
   } else if (!owner.passwordHash || !(await bcrypt.compare(password, owner.passwordHash))) {
     throw new ApiError(401, "Invalid login details");
+  }
+
+  if (!owner.isActive) {
+    throw new ApiError(403, "Your shop is under verification. Login will be enabled after approval.");
   }
 
   owner.lastLoginAt = new Date();
