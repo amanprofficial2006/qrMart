@@ -304,14 +304,22 @@ async function login(req, res) {
     throw new ApiError(401, "Invalid login details");
   }
 
-  if (!owner.isActive) {
+  const shop = await Shop.findById(owner.shopId);
+
+  if (!shop) {
+    throw new ApiError(404, "Shop not found");
+  }
+
+  if (!shop.isActive) {
     throw new ApiError(403, "Your shop is under verification. Login will be enabled after approval.");
+  }
+
+  if (!owner.isActive) {
+    owner.isActive = true;
   }
 
   owner.lastLoginAt = new Date();
   await owner.save();
-
-  const shop = await Shop.findById(owner.shopId);
 
   res.json({
     success: true,

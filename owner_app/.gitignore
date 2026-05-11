@@ -1,0 +1,12 @@
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+coverage/
+.idea/
+.symlink-target-test/
+*.iml
+flutter_*.log
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
