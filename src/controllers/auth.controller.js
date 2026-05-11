@@ -7,24 +7,10 @@ const buildShopUrl = require("../utils/shopUrl");
 const { googleClientIds } = require("../config/google");
 const Owner = require("../models/Owner");
 const Shop = require("../models/Shop");
+const { uploadImage } = require("../services/media.service");
 
 function normalizePhone(phone) {
   return String(phone || "").replace(/\D/g, "");
-}
-
-function fileUrl(file) {
-  if (!file) {
-    return "";
-  }
-
-  if (file.buffer && file.mimetype) {
-    return `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
-  }
-
-  const relativePath = String(file.path || "")
-    .replace(/\\/g, "/")
-    .replace(/^.*uploads\//, "/uploads/");
-  return relativePath.startsWith("/uploads/") ? relativePath : `/uploads/${file.filename}`;
 }
 
 const STATIC_OWNER_OTP = "142006";
@@ -152,7 +138,15 @@ async function register(req, res) {
   const requiresManualVerification = !password;
   const slug = await createUniqueSlug(shopName);
   const qrUrl = buildShopUrl(slug);
-  const verificationPhotos = shopPhotoFiles.map(fileUrl).filter(Boolean);
+  const verificationPhotos = (
+    await Promise.all(
+      shopPhotoFiles.map((file) =>
+        uploadImage(file, {
+          folder: "qrmart/verification-photos"
+        })
+      )
+    )
+  ).filter(Boolean);
 
   const shop = await Shop.create({
     name: shopName,

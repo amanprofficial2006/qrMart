@@ -6,6 +6,7 @@ const OwnerDevice = require("../models/OwnerDevice");
 const { toDataUrl } = require("../services/qr.service");
 const { emitOrderUpdated } = require("../services/realtime.service");
 const { sendCustomerOrderUpdateNotification } = require("../services/notification.service");
+const { uploadImage } = require("../services/media.service");
 const buildShopUrl = require("../utils/shopUrl");
 
 const allowedStatuses = new Set([
@@ -18,19 +19,6 @@ const allowedStatuses = new Set([
   "completed",
   "cancelled"
 ]);
-
-function fileUrl(file) {
-  if (!file) {
-    return "";
-  }
-
-  if (file.buffer && file.mimetype) {
-    return `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
-  }
-
-  const relativePath = file.path.replace(/\\/g, "/").replace(/^.*uploads\//, "/uploads/");
-  return relativePath.startsWith("/uploads/") ? relativePath : `/uploads/${file.filename}`;
-}
 
 function parseBoolean(value, fallback = true) {
   if (value === undefined || value === null || value === "") {
@@ -118,9 +106,12 @@ async function uploadPaymentQr(req, res) {
     throw new ApiError(400, "Please upload a payment QR image");
   }
 
+  const paymentQrUrl = await uploadImage(req.file, {
+    folder: "qrmart/payment-qr"
+  });
   const shop = await Shop.findByIdAndUpdate(
     req.shopId,
-    { "payment.qrCodeUrl": fileUrl(req.file) },
+    { "payment.qrCodeUrl": paymentQrUrl },
     { new: true }
   );
 
@@ -135,9 +126,12 @@ async function uploadLogo(req, res) {
     throw new ApiError(400, "Please upload a logo image");
   }
 
+  const logoUrl = await uploadImage(req.file, {
+    folder: "qrmart/shop-logos"
+  });
   const shop = await Shop.findByIdAndUpdate(
     req.shopId,
-    { logoUrl: fileUrl(req.file) },
+    { logoUrl },
     { new: true }
   );
 
@@ -166,12 +160,18 @@ async function createProduct(req, res) {
     throw new ApiError(400, "Product name and price are required");
   }
 
+  const imageUrl = req.file
+    ? await uploadImage(req.file, {
+        folder: "qrmart/product-images"
+      })
+    : req.body.imageUrl || "";
+
   const product = await Product.create({
     shopId: req.shopId,
     name,
     description,
     price: parsePrice(req.body.price),
-    imageUrl: fileUrl(req.file) || req.body.imageUrl || "",
+    imageUrl,
     category,
     sortOrder: Number(sortOrder) || 0,
     isAvailable: parseBoolean(req.body.isAvailable, true)
@@ -210,7 +210,9 @@ async function updateProduct(req, res) {
   }
 
   if (req.file) {
-    product.imageUrl = fileUrl(req.file);
+    product.imageUrl = await uploadImage(req.file, {
+      folder: "qrmart/product-images"
+    });
   } else if (req.body.imageUrl !== undefined) {
     product.imageUrl = req.body.imageUrl;
   }

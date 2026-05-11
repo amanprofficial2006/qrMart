@@ -43,6 +43,7 @@ module.exports = {
   port: Number(process.env.PORT || 5000),
   appBaseUrl: process.env.APP_BASE_URL || defaultAppBaseUrl,
   corsOrigin: parseCorsOrigins(process.env.CORS_ORIGIN),
+  cloudinaryUrl: process.env.CLOUDINARY_URL || "",
   mongodbUri: process.env.MONGODB_URI,
   firebaseServiceAccountPath: process.env.FIREBASE_SERVICE_ACCOUNT_PATH
     ? path.resolve(process.cwd(), process.env.FIREBASE_SERVICE_ACCOUNT_PATH)
