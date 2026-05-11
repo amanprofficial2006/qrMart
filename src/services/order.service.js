@@ -49,7 +49,7 @@ function buildMapsUrl(location) {
   return `https://www.google.com/maps?q=${latitude},${longitude}`;
 }
 
-async function createOrderForShop(slug, payload) {
+async function createOrderForShop(slug, payload, customerSession = null) {
   const shop = await Shop.findOne({ slug, isActive: true });
 
   if (!shop) {
@@ -60,6 +60,10 @@ async function createOrderForShop(slug, payload) {
 
   if (!mergedItems.length) {
     throw new ApiError(400, "Please select at least one product");
+  }
+
+  if (!customerSession?.id || !customerSession?.phone) {
+    throw new ApiError(401, "Please verify your phone with OTP before placing the order");
   }
 
   const address = String(payload.customer?.address || "").trim();
@@ -99,13 +103,17 @@ async function createOrderForShop(slug, payload) {
   const totalAmount = itemTotal + deliveryCharge;
   const mapsUrl = buildMapsUrl(payload.customer?.location);
   const upiId = shop.payment?.upiId || "";
+  const paymentClaimed = Boolean(payload.payment?.declaredPaid);
+  const initialStatus = paymentClaimed ? "payment_claimed" : "placed";
 
   const order = await Order.create({
     shopId: shop._id,
     orderNumber: generateOrderNumber(),
     customer: {
-      name: payload.customer?.name || "",
-      phone: payload.customer?.phone || "",
+      accountId: customerSession.id,
+      isVerified: true,
+      name: payload.customer?.name || customerSession.name || "",
+      phone: customerSession.phone,
       address,
       note: payload.customer?.note || "",
       location: {
@@ -123,16 +131,17 @@ async function createOrderForShop(slug, payload) {
     },
     payment: {
       method: upiId ? "upi" : "unknown",
-      declaredPaid: Boolean(payload.payment?.declaredPaid),
+      declaredPaid: paymentClaimed,
       upiId
     },
+    status: initialStatus,
     notification: {
       fcmStatus: "pending",
       whatsappFallbackUrl: ""
     },
     timeline: [
       {
-        status: "placed",
+        status: initialStatus,
         by: "customer"
       }
     ]

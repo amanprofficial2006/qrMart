@@ -1,8 +1,57 @@
+const jwt = require("jsonwebtoken");
+const env = require("../config/env");
 const Shop = require("../models/Shop");
 const Product = require("../models/Product");
 const Order = require("../models/Order");
+const Customer = require("../models/Customer");
 const { createOrderForShop } = require("../services/order.service");
 const ApiError = require("../utils/ApiError");
+
+const STATIC_CUSTOMER_OTP = "142006";
+
+function normalizePhone(phone) {
+  return String(phone || "").replace(/\D/g, "");
+}
+
+function serializeCustomer(customer) {
+  return {
+    id: customer._id,
+    name: customer.name,
+    phone: customer.phone
+  };
+}
+
+function signCustomerToken(customer) {
+  return jwt.sign(
+    {
+      customerId: String(customer._id)
+    },
+    env.jwtSecret,
+    { expiresIn: "30d" }
+  );
+}
+
+async function getCustomerSession(req) {
+  const header = req.header("authorization") || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+
+  if (!token) {
+    return null;
+  }
+
+  try {
+    const payload = jwt.verify(token, env.jwtSecret);
+    const customer = await Customer.findById(payload.customerId).select("name phone");
+
+    if (!customer) {
+      return null;
+    }
+
+    return serializeCustomer(customer);
+  } catch (_error) {
+    return null;
+  }
+}
 
 async function getShop(req, res) {
   const shop = await Shop.findOne({
@@ -40,7 +89,8 @@ async function getShop(req, res) {
 }
 
 async function createOrder(req, res) {
-  const order = await createOrderForShop(req.params.slug, req.body);
+  const customerSession = await getCustomerSession(req);
+  const order = await createOrderForShop(req.params.slug, req.body, customerSession);
 
   res.status(201).json({
     success: true,
@@ -53,6 +103,51 @@ async function createOrder(req, res) {
       payment: order.payment,
       fcmStatus: order.notification.fcmStatus,
       whatsappFallbackUrl: order.notification.whatsappFallbackUrl
+    }
+  });
+}
+
+async function verifyCustomerOtp(req, res) {
+  const cleanPhone = normalizePhone(req.body.phone);
+  const cleanName = String(req.body.name || "").trim();
+  const otp = String(req.body.otp || "").trim();
+
+  if (!cleanPhone) {
+    throw new ApiError(400, "Phone number is required");
+  }
+
+  if (cleanPhone.length < 10) {
+    throw new ApiError(400, "Enter a valid phone number");
+  }
+
+  if (otp !== STATIC_CUSTOMER_OTP) {
+    throw new ApiError(401, "Invalid OTP");
+  }
+
+  const customer = await Customer.findOneAndUpdate(
+    { phone: cleanPhone },
+    {
+      $set: {
+        phone: cleanPhone,
+        lastLoginAt: new Date(),
+        ...(cleanName ? { name: cleanName } : {})
+      },
+      $setOnInsert: {
+        name: cleanName
+      }
+    },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true
+    }
+  );
+
+  res.json({
+    success: true,
+    data: {
+      token: signCustomerToken(customer),
+      customer: serializeCustomer(customer)
     }
   });
 }
@@ -82,5 +177,6 @@ async function saveCustomerFcmToken(req, res) {
 module.exports = {
   getShop,
   createOrder,
-  saveCustomerFcmToken
+  saveCustomerFcmToken,
+  verifyCustomerOtp
 };

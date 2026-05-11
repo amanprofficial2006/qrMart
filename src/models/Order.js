@@ -45,6 +45,14 @@ const orderSchema = new mongoose.Schema(
       index: true
     },
     customer: {
+      accountId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Customer"
+      },
+      isVerified: {
+        type: Boolean,
+        default: false
+      },
       name: {
         type: String,
         trim: true,
@@ -131,7 +139,7 @@ const orderSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["placed", "seen", "accepted", "rejected", "preparing", "ready", "completed", "cancelled"],
+      enum: ["placed", "payment_claimed", "seen", "accepted", "rejected", "preparing", "ready", "completed", "cancelled"],
       default: "placed",
       index: true
     },
