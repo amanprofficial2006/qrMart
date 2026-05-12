@@ -95,8 +95,25 @@ function emitOrderUpdated(order) {
   io.to(`order:${order._id}`).emit("order:updated", serializeOrder(order));
 }
 
+function emitCustomerOrderMessage(order, message, status = "") {
+  if (!io) {
+    return false;
+  }
+
+  io.to(`order:${order._id}`).emit("order:message", {
+    orderId: order._id,
+    orderNumber: order.orderNumber,
+    message,
+    status: status || order.status || "",
+    createdAt: new Date().toISOString()
+  });
+
+  return true;
+}
+
 module.exports = {
   initRealtime,
   emitNewOrder,
-  emitOrderUpdated
+  emitOrderUpdated,
+  emitCustomerOrderMessage
 };

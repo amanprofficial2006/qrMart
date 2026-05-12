@@ -4,7 +4,7 @@ const Product = require("../models/Product");
 const Order = require("../models/Order");
 const OwnerDevice = require("../models/OwnerDevice");
 const { toDataUrl } = require("../services/qr.service");
-const { emitOrderUpdated } = require("../services/realtime.service");
+const { emitOrderUpdated, emitCustomerOrderMessage } = require("../services/realtime.service");
 const { sendCustomerOrderUpdateNotification } = require("../services/notification.service");
 const { uploadImage } = require("../services/media.service");
 const buildShopUrl = require("../utils/shopUrl");
@@ -427,13 +427,15 @@ async function sendOrderNotification(req, res) {
 
   const shop = await Shop.findById(req.shopId);
   const result = await sendCustomerOrderUpdateNotification(order, shop, cleanMessage, status);
+  const realtimeSent = emitCustomerOrderMessage(order, cleanMessage, status);
 
   res.json({
     success: true,
     data: {
-      sent: result.status === "sent",
+      sent: result.status === "sent" || realtimeSent,
+      realtimeSent,
       status: result.status,
-      message: result.error || "Notification sent to customer",
+      message: result.error && !realtimeSent ? result.error : "Notification sent to customer",
       providerMessageId: result.messageId
     }
   });
