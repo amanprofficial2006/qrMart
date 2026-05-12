@@ -92,6 +92,7 @@ async function createOrderForShop(slug, payload, customerSession = null) {
     return {
       productId: product._id,
       name: product.name,
+      imageUrl: product.imageUrl || "",
       price: product.price,
       quantity: item.quantity,
       subtotal

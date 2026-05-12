@@ -265,7 +265,7 @@ async function listOrders(req, res) {
 
   res.json({
     success: true,
-    data: orders
+    data: await attachOrderItemImages(orders)
   });
 }
 
@@ -281,8 +281,40 @@ async function getOrder(req, res) {
 
   res.json({
     success: true,
-    data: order
+    data: (await attachOrderItemImages([order]))[0]
   });
+}
+
+async function attachOrderItemImages(orders) {
+  const plainOrders = orders.map((order) =>
+    typeof order.toObject === "function" ? order.toObject() : order
+  );
+  const productIds = [
+    ...new Set(
+      plainOrders.flatMap((order) =>
+        (order.items || [])
+          .filter((item) => !item.imageUrl && item.productId)
+          .map((item) => String(item.productId))
+      )
+    )
+  ];
+
+  if (!productIds.length) {
+    return plainOrders;
+  }
+
+  const products = await Product.find({ _id: { $in: productIds } }).select("imageUrl");
+  const imageByProductId = new Map(
+    products.map((product) => [String(product._id), product.imageUrl || ""])
+  );
+
+  return plainOrders.map((order) => ({
+    ...order,
+    items: (order.items || []).map((item) => ({
+      ...item,
+      imageUrl: item.imageUrl || imageByProductId.get(String(item.productId)) || ""
+    }))
+  }));
 }
 
 async function updateOrderStatus(req, res) {

@@ -176,31 +176,58 @@ async function saveCustomerFcmToken(req, res) {
 
 async function getOrderStatus(req, res) {
   const order = await Order.findById(req.params.orderId).select(
-    "orderNumber customer pricing payment totalAmount status timeline createdAt updatedAt"
+    "orderNumber customer items pricing payment totalAmount status timeline createdAt updatedAt"
   );
 
   if (!order) {
     throw new ApiError(404, "Order not found");
   }
 
+  const orderWithImages = await attachOrderItemImages(order);
+
   res.json({
     success: true,
     data: {
-      orderId: order._id,
-      orderNumber: order.orderNumber,
-      status: order.status,
-      totalAmount: order.totalAmount,
-      pricing: order.pricing,
-      payment: order.payment,
+      orderId: orderWithImages._id,
+      orderNumber: orderWithImages.orderNumber,
+      status: orderWithImages.status,
+      items: orderWithImages.items,
+      totalAmount: orderWithImages.totalAmount,
+      pricing: orderWithImages.pricing,
+      payment: orderWithImages.payment,
       customerSnapshot: {
-        address: order.customer?.address || "",
-        note: order.customer?.note || ""
+        address: orderWithImages.customer?.address || "",
+        note: orderWithImages.customer?.note || ""
       },
-      timeline: order.timeline,
-      createdAt: order.createdAt,
-      updatedAt: order.updatedAt
+      timeline: orderWithImages.timeline,
+      createdAt: orderWithImages.createdAt,
+      updatedAt: orderWithImages.updatedAt
     }
   });
+}
+
+async function attachOrderItemImages(order) {
+  const plainOrder = typeof order.toObject === "function" ? order.toObject() : order;
+  const missingImageProductIds = (plainOrder.items || [])
+    .filter((item) => !item.imageUrl && item.productId)
+    .map((item) => String(item.productId));
+
+  if (!missingImageProductIds.length) {
+    return plainOrder;
+  }
+
+  const products = await Product.find({ _id: { $in: missingImageProductIds } }).select("imageUrl");
+  const imageByProductId = new Map(
+    products.map((product) => [String(product._id), product.imageUrl || ""])
+  );
+
+  return {
+    ...plainOrder,
+    items: (plainOrder.items || []).map((item) => ({
+      ...item,
+      imageUrl: item.imageUrl || imageByProductId.get(String(item.productId)) || ""
+    }))
+  };
 }
 
 module.exports = {
