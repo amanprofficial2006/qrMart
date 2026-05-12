@@ -31,6 +31,13 @@ function initRealtime(server) {
 
   io.use(async (socket, next) => {
     try {
+      const publicOrderId = String(socket.handshake.auth?.orderId || "").trim();
+
+      if (publicOrderId && !socket.handshake.auth?.token) {
+        socket.customerOrderId = publicOrderId;
+        return next();
+      }
+
       const token = socket.handshake.auth?.token;
 
       if (!token) {
@@ -53,6 +60,14 @@ function initRealtime(server) {
   });
 
   io.on("connection", (socket) => {
+    if (socket.customerOrderId) {
+      socket.join(`order:${socket.customerOrderId}`);
+      socket.emit("connected", {
+        orderId: socket.customerOrderId
+      });
+      return;
+    }
+
     socket.join(`shop:${socket.shopId}`);
     socket.emit("connected", {
       shopId: socket.shopId
@@ -77,6 +92,7 @@ function emitOrderUpdated(order) {
   }
 
   io.to(`shop:${order.shopId}`).emit("order:updated", serializeOrder(order));
+  io.to(`order:${order._id}`).emit("order:updated", serializeOrder(order));
 }
 
 module.exports = {

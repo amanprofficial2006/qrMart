@@ -20,6 +20,16 @@ const allowedStatuses = new Set([
   "cancelled"
 ]);
 
+const customerStatusMessages = {
+  accepted: "Your order has been accepted by the shop.",
+  rejected: "Your order was rejected by the shop.",
+  preparing: "Your order is now being prepared.",
+  ready: "Your order is ready.",
+  completed: "Your order has been completed.",
+  cancelled: "Your order was cancelled by the shop.",
+  seen: "The shop has seen your order."
+};
+
 function parseBoolean(value, fallback = true) {
   if (value === undefined || value === null || value === "") {
     return fallback;
@@ -298,6 +308,13 @@ async function updateOrderStatus(req, res) {
   });
   await order.save();
   emitOrderUpdated(order);
+
+  const shop = await Shop.findById(req.shopId).select("name slug");
+  const customerMessage = customerStatusMessages[status] || `Your order status changed to ${status}.`;
+
+  if (shop) {
+    await sendCustomerOrderUpdateNotification(order, shop, customerMessage, status);
+  }
 
   res.json({
     success: true,

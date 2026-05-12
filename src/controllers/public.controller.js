@@ -174,9 +174,39 @@ async function saveCustomerFcmToken(req, res) {
   });
 }
 
+async function getOrderStatus(req, res) {
+  const order = await Order.findById(req.params.orderId).select(
+    "orderNumber customer pricing payment totalAmount status timeline createdAt updatedAt"
+  );
+
+  if (!order) {
+    throw new ApiError(404, "Order not found");
+  }
+
+  res.json({
+    success: true,
+    data: {
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      totalAmount: order.totalAmount,
+      pricing: order.pricing,
+      payment: order.payment,
+      customerSnapshot: {
+        address: order.customer?.address || "",
+        note: order.customer?.note || ""
+      },
+      timeline: order.timeline,
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt
+    }
+  });
+}
+
 module.exports = {
   getShop,
   createOrder,
   saveCustomerFcmToken,
-  verifyCustomerOtp
+  verifyCustomerOtp,
+  getOrderStatus
 };

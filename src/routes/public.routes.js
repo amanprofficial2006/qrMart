@@ -8,6 +8,7 @@ const router = express.Router();
 router.get("/shops/:slug", asyncHandler(publicController.getShop));
 router.post("/customers/verify-otp", publicOrderLimiter, asyncHandler(publicController.verifyCustomerOtp));
 router.post("/shops/:slug/orders", publicOrderLimiter, asyncHandler(publicController.createOrder));
+router.get("/orders/:orderId/status", asyncHandler(publicController.getOrderStatus));
 router.post("/orders/:orderId/customer-token", asyncHandler(publicController.saveCustomerFcmToken));
 
 module.exports = router;
