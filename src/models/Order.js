@@ -148,6 +148,11 @@ const orderSchema = new mongoose.Schema(
       default: "placed",
       index: true
     },
+    rejectionReason: {
+      type: String,
+      trim: true,
+      default: ""
+    },
     source: {
       type: String,
       enum: ["qr", "manual"],
@@ -179,6 +184,11 @@ const orderSchema = new mongoose.Schema(
         by: {
           type: String,
           default: "system"
+        },
+        reason: {
+          type: String,
+          trim: true,
+          default: ""
         }
       }
     ]

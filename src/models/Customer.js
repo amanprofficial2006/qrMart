@@ -13,6 +13,16 @@ const customerSchema = new mongoose.Schema(
       unique: true,
       trim: true
     },
+    address: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+    avatarUrl: {
+      type: String,
+      trim: true,
+      default: ""
+    },
     lastLoginAt: Date
   },
   {

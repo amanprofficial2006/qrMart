@@ -11,7 +11,7 @@ const defaultCorsOrigins = [
   "https://qrmart-01.onrender.com",
   "https://qrmart.onrender.com"
 ];
-const defaultAppBaseUrl = nodeEnv === "production" ? "https://qrmart-01.onrender.com" : "http://localhost:5173";
+const defaultAppBaseUrl = "https://qrmart-01.onrender.com";
 
 function parseCorsOrigins(value) {
   if (!value || value === "*") {

@@ -11,6 +11,7 @@ const buildShopUrl = require("../utils/shopUrl");
 
 const allowedStatuses = new Set([
   "placed",
+  "payment_claimed",
   "seen",
   "accepted",
   "rejected",
@@ -261,7 +262,7 @@ async function listOrders(req, res) {
   const orders = await Order.find(query)
     .sort({ createdAt: -1 })
     .limit(100)
-    .select("orderNumber customer items pricing payment totalAmount status notification createdAt updatedAt");
+    .select("orderNumber customer items pricing payment totalAmount status rejectionReason notification createdAt updatedAt");
 
   res.json({
     success: true,
@@ -319,9 +320,14 @@ async function attachOrderItemImages(orders) {
 
 async function updateOrderStatus(req, res) {
   const { status } = req.body;
+  const reason = String(req.body.reason || "").trim();
 
   if (!allowedStatuses.has(status)) {
     throw new ApiError(400, "Invalid order status");
+  }
+
+  if (status === "rejected" && !reason) {
+    throw new ApiError(400, "Reject reason is required");
   }
 
   const order = await Order.findOne({
@@ -334,15 +340,20 @@ async function updateOrderStatus(req, res) {
   }
 
   order.status = status;
+  order.rejectionReason = status === "rejected" ? reason : "";
   order.timeline.push({
     status,
-    by: "owner"
+    by: "owner",
+    reason: status === "rejected" ? reason : ""
   });
   await order.save();
   emitOrderUpdated(order);
 
   const shop = await Shop.findById(req.shopId).select("name slug");
-  const customerMessage = customerStatusMessages[status] || `Your order status changed to ${status}.`;
+  const customerMessage =
+    status === "rejected"
+      ? `${customerStatusMessages.rejected} Reason: ${reason}`
+      : customerStatusMessages[status] || `Your order status changed to ${status}.`;
 
   if (shop) {
     await sendCustomerOrderUpdateNotification(order, shop, customerMessage, status);

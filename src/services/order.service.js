@@ -3,6 +3,7 @@ const ApiError = require("../utils/ApiError");
 const Shop = require("../models/Shop");
 const Product = require("../models/Product");
 const Order = require("../models/Order");
+const Customer = require("../models/Customer");
 const { buildWhatsAppOrderUrl } = require("./whatsapp.service");
 const { sendNewOrderNotification } = require("./notification.service");
 const { emitNewOrder } = require("./realtime.service");
@@ -146,6 +147,11 @@ async function createOrderForShop(slug, payload, customerSession = null) {
         by: "customer"
       }
     ]
+  });
+
+  await Customer.findByIdAndUpdate(customerSession.id, {
+    ...(payload.customer?.name ? { name: String(payload.customer.name).trim() } : {}),
+    address
   });
 
   const whatsappFallbackUrl = buildWhatsAppOrderUrl(order, shop);
