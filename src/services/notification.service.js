@@ -6,7 +6,7 @@ const INVALID_TOKEN_CODES = new Set([
   "messaging/invalid-registration-token",
   "messaging/registration-token-not-registered"
 ]);
-const OWNER_ORDER_ALERT_CHANNEL_ID = "orders_alerts_v2";
+const OWNER_ORDER_ALERT_CHANNEL_ID = "orders_alerts_v3";
 const OWNER_ORDER_ALERT_SOUND = "order_alert";
 
 function summarizeOrder(order) {
@@ -98,6 +98,10 @@ async function sendNewOrderNotification(order, shop) {
     if (androidTokens.length) {
       const androidResponse = await messaging.sendEachForMulticast({
         tokens: androidTokens,
+        notification: {
+          title: "New Order",
+          body
+        },
         data: {
           type: "NEW_ORDER",
           orderId: String(order._id),
@@ -115,7 +119,14 @@ async function sendNewOrderNotification(order, shop) {
         },
         android: {
           priority: "high",
-          ttl: 60 * 60 * 1000
+          ttl: 60 * 60 * 1000,
+          notification: {
+            channelId: OWNER_ORDER_ALERT_CHANNEL_ID,
+            sound: OWNER_ORDER_ALERT_SOUND,
+            priority: "max",
+            visibility: "public",
+            defaultVibrateTimings: true
+          }
         }
       });
 
