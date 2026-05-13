@@ -4,6 +4,7 @@ const Shop = require("../models/Shop");
 const Product = require("../models/Product");
 const Order = require("../models/Order");
 const Customer = require("../models/Customer");
+const CustomerRecentShop = require("../models/CustomerRecentShop");
 const { createOrderForShop } = require("../services/order.service");
 const { uploadImage } = require("../services/media.service");
 const ApiError = require("../utils/ApiError");
@@ -21,6 +22,20 @@ function serializeCustomer(customer) {
     phone: customer.phone,
     address: customer.address || "",
     avatarUrl: customer.avatarUrl || ""
+  };
+}
+
+function serializeRecentShop(entry) {
+  const shop = entry.shopId;
+
+  return {
+    slug: shop.slug,
+    basePath: `/shop/${shop.slug}`,
+    name: shop.name,
+    address: shop.address || "",
+    description: shop.description || "",
+    logoUrl: shop.logoUrl || "",
+    savedAt: entry.lastOpenedAt || entry.updatedAt || entry.createdAt
   };
 }
 
@@ -244,6 +259,63 @@ async function uploadCustomerAvatar(req, res) {
   });
 }
 
+async function listRecentShops(req, res) {
+  const customer = await requireCustomer(req);
+  const recentShops = await CustomerRecentShop.find({ customerId: customer._id })
+    .sort({ lastOpenedAt: -1 })
+    .limit(12)
+    .populate({
+      path: "shopId",
+      match: { isActive: true },
+      select: "name slug address logoUrl description"
+    });
+
+  res.json({
+    success: true,
+    data: recentShops.filter((entry) => entry.shopId).map(serializeRecentShop)
+  });
+}
+
+async function recordRecentShop(req, res) {
+  const customer = await requireCustomer(req);
+  const shop = await Shop.findOne({
+    slug: req.params.slug,
+    isActive: true
+  }).select("name slug address logoUrl description");
+
+  if (!shop) {
+    throw new ApiError(404, "Shop not found");
+  }
+
+  const recentShop = await CustomerRecentShop.findOneAndUpdate(
+    {
+      customerId: customer._id,
+      shopId: shop._id
+    },
+    {
+      $set: {
+        lastOpenedAt: new Date()
+      },
+      $inc: {
+        openCount: 1
+      }
+    },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true
+    }
+  ).populate({
+    path: "shopId",
+    select: "name slug address logoUrl description"
+  });
+
+  res.status(201).json({
+    success: true,
+    data: serializeRecentShop(recentShop)
+  });
+}
+
 async function getOrderStatus(req, res) {
   const order = await Order.findById(req.params.orderId).select(
     "orderNumber customer items pricing payment totalAmount status rejectionReason timeline createdAt updatedAt"
@@ -308,5 +380,7 @@ module.exports = {
   verifyCustomerOtp,
   updateCustomerProfile,
   uploadCustomerAvatar,
+  listRecentShops,
+  recordRecentShop,
   getOrderStatus
 };
