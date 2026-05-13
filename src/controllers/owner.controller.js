@@ -17,6 +17,7 @@ const allowedStatuses = new Set([
   "rejected",
   "preparing",
   "ready",
+  "out_for_delivery",
   "completed",
   "cancelled"
 ]);
@@ -26,6 +27,7 @@ const customerStatusMessages = {
   rejected: "Your order was rejected by the shop.",
   preparing: "Your order is now being prepared.",
   ready: "Your order is ready.",
+  out_for_delivery: "Your order is out for delivery.",
   completed: "Your order has been completed.",
   cancelled: "Your order was cancelled by the shop.",
   seen: "The shop has seen your order."
@@ -47,6 +49,23 @@ function parsePrice(value) {
   }
 
   return price;
+}
+
+function parseProductPrices(body, existingProduct = null) {
+  const fallbackPrice =
+    body.price !== undefined
+      ? parsePrice(body.price)
+      : existingProduct
+        ? Number(existingProduct.price || existingProduct.onlinePrice || existingProduct.codPrice || 0)
+        : 0;
+  const onlinePrice = body.onlinePrice !== undefined ? parsePrice(body.onlinePrice) : fallbackPrice;
+  const codPrice = body.codPrice !== undefined ? parsePrice(body.codPrice) : fallbackPrice;
+
+  return {
+    price: onlinePrice,
+    onlinePrice,
+    codPrice
+  };
 }
 
 function parseMoney(value, fieldName) {
@@ -167,9 +186,10 @@ async function listProducts(req, res) {
 async function createProduct(req, res) {
   const { name, description = "", category = "General", sortOrder = 0 } = req.body;
 
-  if (!name || req.body.price === undefined) {
+  if (!name || (req.body.price === undefined && req.body.onlinePrice === undefined && req.body.codPrice === undefined)) {
     throw new ApiError(400, "Product name and price are required");
   }
+  const prices = parseProductPrices(req.body);
 
   const imageUrl = req.file
     ? await uploadImage(req.file, {
@@ -181,7 +201,7 @@ async function createProduct(req, res) {
     shopId: req.shopId,
     name,
     description,
-    price: parsePrice(req.body.price),
+    ...prices,
     imageUrl,
     category,
     sortOrder: Number(sortOrder) || 0,
@@ -213,7 +233,15 @@ async function updateProduct(req, res) {
   }
 
   if (req.body.price !== undefined) {
-    product.price = parsePrice(req.body.price);
+    const prices = parseProductPrices(req.body, product);
+    product.price = prices.price;
+    product.onlinePrice = prices.onlinePrice;
+    product.codPrice = prices.codPrice;
+  } else if (req.body.onlinePrice !== undefined || req.body.codPrice !== undefined) {
+    const prices = parseProductPrices(req.body, product);
+    product.price = prices.price;
+    product.onlinePrice = prices.onlinePrice;
+    product.codPrice = prices.codPrice;
   }
 
   if (req.body.isAvailable !== undefined) {

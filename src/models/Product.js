@@ -23,6 +23,16 @@ const productSchema = new mongoose.Schema(
       required: true,
       min: 0
     },
+    codPrice: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+    onlinePrice: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
     imageUrl: {
       type: String,
       trim: true,
@@ -51,4 +61,3 @@ productSchema.index({ shopId: 1, isAvailable: 1 });
 productSchema.index({ shopId: 1, category: 1 });
 
 module.exports = mongoose.model("Product", productSchema);
-

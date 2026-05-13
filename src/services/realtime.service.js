@@ -15,6 +15,7 @@ function serializeOrder(order) {
     payment: order.payment,
     totalAmount: order.totalAmount,
     status: order.status,
+    rejectionReason: order.rejectionReason || "",
     notification: order.notification,
     createdAt: order.createdAt,
     updatedAt: order.updatedAt

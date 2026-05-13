@@ -235,8 +235,16 @@ async function sendNewOrderNotification(order, shop) {
 async function sendCustomerOrderUpdateNotification(order, shop, message, status = "") {
   const messaging = getFirebaseMessaging();
   const token = order.customer?.fcmToken;
+  const cleanMessage = String(message || "").trim();
+  const cleanStatus = status || order.status || "";
+  const rejectionReason = cleanStatus === "rejected" ? String(order.rejectionReason || "").trim() : "";
+  const notificationTitle = cleanStatus === "rejected" ? "Order Rejected" : "Order Update";
+  const notificationBody =
+    cleanStatus === "rejected" && rejectionReason
+      ? `Your order was rejected. Reason: ${rejectionReason}`
+      : cleanMessage;
 
-  if (!message || !message.trim()) {
+  if (!cleanMessage) {
     return {
       status: "failed",
       messageId: "",
@@ -280,16 +288,19 @@ async function sendCustomerOrderUpdateNotification(order, shop, message, status 
     const response = await messaging.send({
       token,
       notification: {
-        title: "Order Update",
-        body: message.trim()
+        title: notificationTitle,
+        body: notificationBody
       },
       data: {
         type: "ORDER_UPDATE",
         orderId: String(order._id),
         orderNumber: order.orderNumber,
         shopId: String(shop._id),
+        shopSlug: shop.slug || "",
         shopName: shop.name || "",
-        status: status || order.status || ""
+        status: cleanStatus,
+        message: notificationBody,
+        rejectionReason
       },
       android: {
         priority: "high",
@@ -308,8 +319,8 @@ async function sendCustomerOrderUpdateNotification(order, shop, message, status 
       },
       webpush: {
         notification: {
-          title: "Order Update",
-          body: message.trim(),
+          title: notificationTitle,
+          body: notificationBody,
           icon: "/favicon.svg",
           badge: "/favicon.svg",
           requireInteraction: true,

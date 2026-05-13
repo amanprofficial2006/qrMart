@@ -50,6 +50,28 @@ function buildMapsUrl(location) {
   return `https://www.google.com/maps?q=${latitude},${longitude}`;
 }
 
+function resolvePaymentMethod(payload, shop) {
+  const requested = String(payload.payment?.method || "").trim().toLowerCase();
+
+  if (requested === "cash" || requested === "cod") {
+    return "cash";
+  }
+
+  if (requested === "upi" || requested === "online") {
+    return "upi";
+  }
+
+  return shop.payment?.upiId || shop.payment?.qrCodeUrl ? "upi" : "cash";
+}
+
+function resolveProductPrice(product, paymentMethod) {
+  if (paymentMethod === "cash") {
+    return Number(product.codPrice || product.price || product.onlinePrice || 0);
+  }
+
+  return Number(product.onlinePrice || product.price || product.codPrice || 0);
+}
+
 async function createOrderForShop(slug, payload, customerSession = null) {
   const shop = await Shop.findOne({ slug, isActive: true });
 
@@ -85,16 +107,18 @@ async function createOrderForShop(slug, payload, customerSession = null) {
   }
 
   const productById = new Map(products.map((product) => [String(product._id), product]));
+  const paymentMethod = resolvePaymentMethod(payload, shop);
 
   const orderItems = mergedItems.map((item) => {
     const product = productById.get(String(item.productId));
-    const subtotal = product.price * item.quantity;
+    const price = resolveProductPrice(product, paymentMethod);
+    const subtotal = price * item.quantity;
 
     return {
       productId: product._id,
       name: product.name,
       imageUrl: product.imageUrl || "",
-      price: product.price,
+      price,
       quantity: item.quantity,
       subtotal
     };
@@ -105,7 +129,7 @@ async function createOrderForShop(slug, payload, customerSession = null) {
   const totalAmount = itemTotal + deliveryCharge;
   const mapsUrl = buildMapsUrl(payload.customer?.location);
   const upiId = shop.payment?.upiId || "";
-  const paymentClaimed = Boolean(payload.payment?.declaredPaid);
+  const paymentClaimed = paymentMethod === "upi" && Boolean(payload.payment?.declaredPaid);
   const initialStatus = paymentClaimed ? "payment_claimed" : "placed";
 
   const order = await Order.create({
@@ -132,7 +156,7 @@ async function createOrderForShop(slug, payload, customerSession = null) {
       finalTotal: totalAmount
     },
     payment: {
-      method: upiId ? "upi" : "unknown",
+      method: paymentMethod,
       declaredPaid: paymentClaimed,
       upiId
     },

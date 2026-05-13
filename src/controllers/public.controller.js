@@ -86,7 +86,7 @@ async function getShop(req, res) {
     isAvailable: true
   })
     .sort({ sortOrder: 1, name: 1 })
-    .select("name description price imageUrl category isAvailable sortOrder");
+    .select("name description price codPrice onlinePrice imageUrl category isAvailable sortOrder");
 
   res.json({
     success: true,
